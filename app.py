@@ -6,7 +6,7 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 
-# === 【V9.19 标签融合版】===
+# === 【V9.20 精准防误判版】===
 # 疫苗：强行修复 openpyxl 读取带下拉菜单的 Excel 时的底层报错
 try:
     import openpyxl.worksheet.datavalidation
@@ -20,10 +20,10 @@ except Exception:
 # ===============================
 
 # 1. 网页全局配置
-st.set_page_config(page_title="饱里宝气 | 极简分单系统 v9.19", page_icon="🍱", layout="wide")
+st.set_page_config(page_title="饱里宝气 | 极简分单系统 v9.20", page_icon="🍱", layout="wide")
 
-st.title("🍱 饱气极简分单中枢 V9.19 云端版")
-st.markdown("V9.19 更新：**标签融合引擎** | 智能合并备注与原标签，自动生成如“免辣加量”等复合标签。")
+st.title("🍱 饱气极简分单中枢 V9.20 云端版")
+st.markdown("V9.20 更新：**标签防误判引擎** | 屏蔽“少菜多饭”触发加量，精准提取“免辣”等核心需求。")
 
 # 2. 核心分单逻辑
 def categorize_final(addr):
@@ -234,11 +234,11 @@ def smart_refine_address(original_addr, remark):
             
     return clean_address(original_addr)
 
-# === 【V9.19 核心修改：标签融合引擎】 ===
+# === 【V9.20 核心修改：标签融合防误判引擎】 ===
 def smart_tagger(remark, current_tag):
     r = str(remark).strip() if pd.notna(remark) else ''
     t = str(current_tag).strip() if pd.notna(current_tag) else ''
-    combined = r + " " + t  # 将原标签和备注拼在一起全盘扫描
+    combined = r + " " + t  
     
     tags = []
     
@@ -246,10 +246,13 @@ def smart_tagger(remark, current_tag):
     if any(kw in combined for kw in ['不辣', '无辣', '不要辣', '免辣']): 
         tags.append("免辣")
         
-    # 2. 扫描饭量 (加量与少饭互斥，优先判定少饭)
-    if any(kw in combined for kw in ['少饭多菜', '多蔬菜', '少饭']): 
+    # 2. 扫描饭量 (建立防误判隔离区)
+    # 屏蔽掉“少菜多饭”，防止里面的“多饭”被系统误抓为“加量”
+    check_text = combined.replace('少菜多饭', '').replace('多饭少菜', '')
+    
+    if any(kw in check_text for kw in ['少饭多菜', '多蔬菜', '少饭']): 
         tags.append("少饭多菜")
-    elif any(kw in combined for kw in ['加量', '多饭']): 
+    elif any(kw in check_text for kw in ['加量', '多饭']): 
         tags.append("加量")
         
     # 3. 扫描体验餐
@@ -258,7 +261,7 @@ def smart_tagger(remark, current_tag):
         
     # 4. 融合输出
     if tags:
-        return "".join(tags) # 将检测到的所有标签无缝拼接，如 "免辣加量"
+        return "".join(tags) # 如果只有免辣，就会原封不动输出“免辣”
         
     return t if t else ''
 # ==========================================
@@ -280,7 +283,7 @@ def clean_remark_overrides(rem):
     return rem_str
 
 # 7. 文件处理主程序
-uploaded_file = st.file_uploader("📂 请上传原始订单表 (验证 V9.19 标签融合版)", type=['csv', 'xlsx', 'xls'])
+uploaded_file = st.file_uploader("📂 请上传原始订单表 (验证 V9.20 防误判版)", type=['csv', 'xlsx', 'xls'])
 
 if uploaded_file is not None:
     try:
@@ -314,7 +317,7 @@ if uploaded_file is not None:
             df_final = df_sorted[final_cols]
             df_final.columns = ['用户昵称', '数量', '订单标签', '配送地址', '配送员', '订单备注']
 
-            st.success("✅ V9.19 处理完成！冲突标签已完美合并为复合标签！")
+            st.success("✅ V9.20 处理完成！“少菜多饭”误伤加量 BUG 已彻底消灭！")
             st.dataframe(df_final.head(10), use_container_width=True)
             
             output = io.BytesIO()
@@ -347,8 +350,8 @@ if uploaded_file is not None:
                     
                 ws.row_dimensions[1].height = 25
             
-            st.download_button(label="⬇️ 下载饱气精排打印版 (V9.19)", data=output.getvalue(),
-                               file_name=f"饱气精排版_V9.19.xlsx",
+            st.download_button(label="⬇️ 下载饱气精排打印版 (V9.20)", data=output.getvalue(),
+                               file_name=f"饱气精排版_V9.20.xlsx",
                                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     except Exception as e:
         st.error(f"处理失败: {e}")
