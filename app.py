@@ -6,7 +6,7 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 
-# === 【V9.18 基因克隆版】===
+# === 【V9.19 标签融合版】===
 # 疫苗：强行修复 openpyxl 读取带下拉菜单的 Excel 时的底层报错
 try:
     import openpyxl.worksheet.datavalidation
@@ -20,10 +20,10 @@ except Exception:
 # ===============================
 
 # 1. 网页全局配置
-st.set_page_config(page_title="饱里宝气 | 极简分单系统 v9.18", page_icon="🍱", layout="wide")
+st.set_page_config(page_title="饱里宝气 | 极简分单系统 v9.19", page_icon="🍱", layout="wide")
 
-st.title("🍱 饱气极简分单中枢 V9.18 云端版")
-st.markdown("V9.18 更新：**精准替换引擎** | 备注纯楼栋将精准替换原地址的旧楼栋，完美保留校区前缀。")
+st.title("🍱 饱气极简分单中枢 V9.19 云端版")
+st.markdown("V9.19 更新：**标签融合引擎** | 智能合并备注与原标签，自动生成如“免辣加量”等复合标签。")
 
 # 2. 核心分单逻辑
 def categorize_final(addr):
@@ -99,11 +99,7 @@ def apply_prefix(orig_addr, addr, person):
 
     if person in ['zw', '骑手']:
         clean_addr = clean_addr.replace('湖南师范大学', '').replace('湖南师大', '').replace('湖师大', '').replace('师大', '').replace('二里半校区', '').replace('二里半', '')
-        
-        # 【V9.18 修复】保护 10栋 这种纯楼栋数字不被误杀，只清理 6逸夫 这种夹心数字
         clean_addr = re.sub(r'^\d+(?!(栋|舍|楼|单元|区|号|座))', '', clean_addr).strip()
-        
-        # 【V9.18 修复】兼容阿拉伯数字和中文的转换
         if any(k in orig_str or k in clean_addr for k in ["九栋", "9栋"]): return "12师大二里半校区九栋"
         if any(k in orig_str or k in clean_addr for k in ["十栋", "10栋"]): return "10师大二里半校区十栋"
         
@@ -219,20 +215,14 @@ def smart_refine_address(original_addr, remark):
         
         if match:
             extracted_target = match.group(1)
-            
-            # === 【V9.18 精准替换引擎】 ===
-            # 如果备注提取出类似 "10栋", "34栋", "3楼", "A座" 这种“纯数字/字母+单位”
             suffix_match = re.match(r'^([A-Za-z0-9]+)(舍|栋|楼|公寓|区|单元|号|座)$', extracted_target)
             
             if suffix_match:
-                suffix = suffix_match.group(2) # 提取单位，比如 "栋"
-                # 构建搜索条件：在原地址找 [任意数字/字母]+这个单位（比如找 "9栋" 或 "69栋"）
+                suffix = suffix_match.group(2) 
                 orig_replace_pattern = r'[A-Za-z0-9]+' + suffix
                 if re.search(orig_replace_pattern, orig_str):
-                    # 找到后，直接精准替换。例如把 "天马小区69栋" 替换为 "天马小区34栋"
                     return re.sub(orig_replace_pattern, extracted_target, orig_str)
             
-            # 兜底：如果没有触发替换（比如备注写了完整的“天马34栋”），走大片区继承
             major_areas = ['二里半', '天马', '升华', '后湖', '新校区', '本部', '南校', '师大', '湖南师范', '湖大', '湖南大学', '德智', '中南', '麓枫', '美术', '和乐', '体育馆', '桃花', '国际艺术园区']
             has_major_area = any(area in extracted_target for area in major_areas)
             
@@ -240,20 +230,38 @@ def smart_refine_address(original_addr, remark):
                 for area in major_areas:
                     if area in orig_str:
                         return area + extracted_target
-            
             return extracted_target
             
     return clean_address(original_addr)
 
+# === 【V9.19 核心修改：标签融合引擎】 ===
 def smart_tagger(remark, current_tag):
     r = str(remark).strip() if pd.notna(remark) else ''
     t = str(current_tag).strip() if pd.notna(current_tag) else ''
-    combined = r + " " + t
-    if '体验餐' in combined: return '体验餐'
-    if any(kw in combined for kw in ['加量', '多饭']): return "加量"
-    if any(kw in combined for kw in ['少饭多菜', '多蔬菜', '少饭']): return "少饭多菜"
-    if any(kw in combined for kw in ['不辣', '无辣', '不要辣', '免辣']): return "免辣"
+    combined = r + " " + t  # 将原标签和备注拼在一起全盘扫描
+    
+    tags = []
+    
+    # 1. 扫描辣度
+    if any(kw in combined for kw in ['不辣', '无辣', '不要辣', '免辣']): 
+        tags.append("免辣")
+        
+    # 2. 扫描饭量 (加量与少饭互斥，优先判定少饭)
+    if any(kw in combined for kw in ['少饭多菜', '多蔬菜', '少饭']): 
+        tags.append("少饭多菜")
+    elif any(kw in combined for kw in ['加量', '多饭']): 
+        tags.append("加量")
+        
+    # 3. 扫描体验餐
+    if '体验餐' in combined: 
+        tags.append("体验餐")
+        
+    # 4. 融合输出
+    if tags:
+        return "".join(tags) # 将检测到的所有标签无缝拼接，如 "免辣加量"
+        
     return t if t else ''
+# ==========================================
 
 def apply_remark_overrides(addr, rem):
     if pd.isna(rem): return addr
@@ -272,7 +280,7 @@ def clean_remark_overrides(rem):
     return rem_str
 
 # 7. 文件处理主程序
-uploaded_file = st.file_uploader("📂 请上传原始订单表 (验证 V9.18 基因克隆版)", type=['csv', 'xlsx', 'xls'])
+uploaded_file = st.file_uploader("📂 请上传原始订单表 (验证 V9.19 标签融合版)", type=['csv', 'xlsx', 'xls'])
 
 if uploaded_file is not None:
     try:
@@ -306,7 +314,7 @@ if uploaded_file is not None:
             df_final = df_sorted[final_cols]
             df_final.columns = ['用户昵称', '数量', '订单标签', '配送地址', '配送员', '订单备注']
 
-            st.success("✅ V9.18 处理完成！备注孤立数字已完美替换原地址楼栋！")
+            st.success("✅ V9.19 处理完成！冲突标签已完美合并为复合标签！")
             st.dataframe(df_final.head(10), use_container_width=True)
             
             output = io.BytesIO()
@@ -339,8 +347,8 @@ if uploaded_file is not None:
                     
                 ws.row_dimensions[1].height = 25
             
-            st.download_button(label="⬇️ 下载饱气精排打印版 (V9.18)", data=output.getvalue(),
-                               file_name=f"饱气精排版_V9.18.xlsx",
+            st.download_button(label="⬇️ 下载饱气精排打印版 (V9.19)", data=output.getvalue(),
+                               file_name=f"饱气精排版_V9.19.xlsx",
                                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     except Exception as e:
         st.error(f"处理失败: {e}")
