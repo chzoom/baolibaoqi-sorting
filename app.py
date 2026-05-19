@@ -6,13 +6,12 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 
-# === 【V9.16 终极抗干扰疫苗】===
-# 强行修复 openpyxl 最新版读取带下拉菜单的 Excel 时的底层 'id' 报错 BUG
+# === 【V9.17 基因继承版】===
 try:
     import openpyxl.worksheet.datavalidation
     _orig_init = openpyxl.worksheet.datavalidation.DataValidation.__init__
     def _safe_init(self, *args, **kwargs):
-        kwargs.pop('id', None) # 拔掉引发报错的毒牙
+        kwargs.pop('id', None)
         _orig_init(self, *args, **kwargs)
     openpyxl.worksheet.datavalidation.DataValidation.__init__ = _safe_init
 except Exception:
@@ -20,10 +19,10 @@ except Exception:
 # ===============================
 
 # 1. 网页全局配置
-st.set_page_config(page_title="饱里宝气 | 极简分单系统 v9.16", page_icon="🍱", layout="wide")
+st.set_page_config(page_title="饱里宝气 | 极简分单系统 v9.17", page_icon="🍱", layout="wide")
 
-st.title("🍱 饱气极简分单中枢 V9.16 云端版")
-st.markdown("V9.16 更新：**bj版图扩容与云端重构** | 注入表单解析疫苗，彻底解决云端环境冲突。")
+st.title("🍱 饱气极简分单中枢 V9.17 云端版")
+st.markdown("V9.17 更新：**地址基因继承引擎** | 备注中仅填写楼栋号时，将自动继承原地址的片区前缀。")
 
 # 2. 核心分单逻辑 (绝对优先级排序引擎)
 def categorize_final(addr):
@@ -219,11 +218,34 @@ def clean_address(addr):
 
 def smart_refine_address(original_addr, remark):
     remark_str = str(remark).replace('\n', '') if pd.notna(remark) else ''
+    orig_str = str(original_addr).replace('\n', '') if pd.notna(original_addr) else ''
+    
     if any(k in remark_str for k in ['舍', '栋', '楼', '公寓', '宿舍', '院', '馆', '中心', '园', '小区', '村', '座']):
+        # 清理口语化的前缀词
         clean_rem = re.sub(r'(麻烦送到|麻烦送|麻烦|请送|请送到|放附近|改送到|送到|改送|送去|实际地址为|实际地址是|地址改为|地址为|地址是|谢谢|啦)', '', remark_str)
-        pattern = r'([^\s,，。!！\-\+]{2,30}(?:舍|栋|楼|公寓|宿舍|研究生\d+舍|院|馆|中心|园|小区|村|门|座|研究院|学院|公司|外卖架|婚礼|园区|绸缎庄|新东方)[^\s,，。!！\-\+]*)'
+        
+        # 提取备注中的地址特征 (比如 "10栋", "34栋", "天马34栋")
+        pattern = r'([A-Za-z0-9\u4e00-\u9fa5]+(?:舍|栋|楼|公寓|宿舍|研究生\d+舍|院|馆|中心|园|小区|村|门|座|研究院|学院|公司|外卖架|婚礼|园区|绸缎庄|新东方)[A-Za-z0-9\u4e00-\u9fa5]*)'
         match = re.search(pattern, clean_rem)
-        if match: return match.group(1)
+        
+        if match:
+            extracted_target = match.group(1)
+            
+            # === 【V9.17 地址基因继承逻辑】 ===
+            # 定义主要校区/大区域的关键字（按优先级排列）
+            major_areas = ['天马', '升华', '后湖', '新校区', '本部', '南校', '师大', '湖南师范', '湖大', '湖南大学', '德智', '中南', '麓枫', '美术', '和乐', '体育馆', '桃花', '国际艺术园区']
+            
+            # 判断备注里抓出来的地址，是否含有大片区标识
+            has_major_area = any(area in extracted_target for area in major_areas)
+            
+            # 如果备注里只有光秃秃的 "34栋"，就去原地址里“借”一个前缀过来
+            if not has_major_area:
+                for area in major_areas:
+                    if area in orig_str:
+                        return area + extracted_target # 例如拼成 "天马" + "34栋"
+            
+            return extracted_target
+            
     return clean_address(original_addr)
 
 def smart_tagger(remark, current_tag):
@@ -259,7 +281,7 @@ def clean_remark_overrides(rem):
     return rem_str
 
 # 7. 文件处理主程序
-uploaded_file = st.file_uploader("📂 请上传原始订单表 (验证无敌云端版)", type=['csv', 'xlsx', 'xls'])
+uploaded_file = st.file_uploader("📂 请上传原始订单表 (验证 V9.17 基因继承版)", type=['csv', 'xlsx', 'xls'])
 
 if uploaded_file is not None:
     try:
@@ -293,7 +315,7 @@ if uploaded_file is not None:
             df_final = df_sorted[final_cols]
             df_final.columns = ['用户昵称', '数量', '订单标签', '配送地址', '配送员', '订单备注']
 
-            st.success("✅ V9.16 处理完成！饱气云端中枢已彻底免疫表格结构 BUG！")
+            st.success("✅ V9.17 处理完成！孤立楼栋号已成功继承原片区基因！")
             st.dataframe(df_final.head(10), use_container_width=True)
             
             output = io.BytesIO()
@@ -326,8 +348,8 @@ if uploaded_file is not None:
                     
                 ws.row_dimensions[1].height = 25
             
-            st.download_button(label="⬇️ 下载饱气精排打印版", data=output.getvalue(),
-                               file_name=f"饱气精排版_V9.16.xlsx",
+            st.download_button(label="⬇️ 下载饱气精排打印版 (V9.17)", data=output.getvalue(),
+                               file_name=f"饱气精排版_V9.17.xlsx",
                                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     except Exception as e:
         st.error(f"处理失败: {e}")
