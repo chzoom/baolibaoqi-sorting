@@ -2,14 +2,28 @@ import streamlit as st
 import pandas as pd
 import re
 import io
+import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 
-# 1. 网页全局配置
-st.set_page_config(page_title="饱里宝气 | 极简分单系统 v9.15", page_icon="🍱", layout="wide")
+# === 【V9.16 终极抗干扰疫苗】===
+# 强行修复 openpyxl 最新版读取带下拉菜单的 Excel 时的底层 'id' 报错 BUG
+try:
+    import openpyxl.worksheet.datavalidation
+    _orig_init = openpyxl.worksheet.datavalidation.DataValidation.__init__
+    def _safe_init(self, *args, **kwargs):
+        kwargs.pop('id', None) # 拔掉引发报错的毒牙
+        _orig_init(self, *args, **kwargs)
+    openpyxl.worksheet.datavalidation.DataValidation.__init__ = _safe_init
+except Exception:
+    pass
+# ===============================
 
-st.title("🍱 饱里宝气极简分单中枢 V9.15")
-st.markdown("V9.15 更新：**bj 版图扩容** | 新增新东方3楼 | 同步脱壳与尾部保护。")
+# 1. 网页全局配置
+st.set_page_config(page_title="饱里宝气 | 极简分单系统 v9.16", page_icon="🍱", layout="wide")
+
+st.title("🍱 饱气极简分单中枢 V9.16 云端版")
+st.markdown("V9.16 更新：**bj版图扩容与云端重构** | 注入表单解析疫苗，彻底解决云端环境冲突。")
 
 # 2. 核心分单逻辑 (绝对优先级排序引擎)
 def categorize_final(addr):
@@ -21,7 +35,6 @@ def categorize_final(addr):
     
     if any(k in addr for k in ['德智', '后湖小区', '后湖门', '11栋围栏', '生命交叉', '生命医学交叉', '天马小区', '天马南门', '天马学生公寓(南门)', '天马学生公寓（南门）']): return 'ds'
     
-    # 【V9.15 新增】：将新东方加入 bj 专属防空网
     if any(k in addr for k in ['天马公寓', '天马学生公寓', '天马大酒店', '生物学院', '笔芯', '未来乡村', '国家电能', '天马基地', '新东方']): return 'bj'
     
     if any(k in addr for k in ['桃花坪', '桃花公寓', '南院', '美术楼', '和乐楼', '体育馆', '矿冶院']): return 'fx'
@@ -53,16 +66,13 @@ ADDRESS_KEYWORD_ORDER = {
 # 4. 地址标准化引擎
 def apply_prefix(orig_addr, addr, person):
     clean_addr = str(addr).strip()
-    
     clean_addr = clean_addr.replace('湖南师范大学国际艺术园区', '国际艺术园区')
     clean_addr = clean_addr.replace('中南大学新校区化学天马小区', '天马小区').replace('化学天马小区', '天马小区')
-    
     orig_str = clean_addr.strip()
     
     clean_addr = re.sub(r'^\d+(?=(湖南|中南|师大|万科|天马|后湖|国家|麓枫|世承|木兰|研究生|江边|桃花|美术|和乐|矿冶|德智|生命|国际艺术园区|新东方))', '', clean_addr)
     clean_addr = re.sub(r'(麻烦送到|麻烦送|送到|麻烦|请送|请送到)', '', clean_addr)
     
-    # 【V9.15 新增】：将新东方加入社会实体词库，自动剥离无关注入的校名
     company_community_keywords = ['公司', '研究院', '小区', '德必', 'MeUMe', '慧博云通', '腾讯', '半导体', '麓枫和苑', '天马基地', '未来乡村', '惟盛园', '中南壹号', '外卖架', '婚礼', '国际艺术园区', '绸缎庄', '新东方']
     if any(k in orig_str for k in company_community_keywords):
         clean_addr = re.sub(r'(中南大学新校区|中南大学校本部|中南大学升华公寓|中南大学|湖南师范大学|湖南师大|湖师大|湖南大学|湖大|新校区|校本部|本部)', '', clean_addr)
@@ -211,7 +221,6 @@ def smart_refine_address(original_addr, remark):
     remark_str = str(remark).replace('\n', '') if pd.notna(remark) else ''
     if any(k in remark_str for k in ['舍', '栋', '楼', '公寓', '宿舍', '院', '馆', '中心', '园', '小区', '村', '座']):
         clean_rem = re.sub(r'(麻烦送到|麻烦送|麻烦|请送|请送到|放附近|改送到|送到|改送|送去|实际地址为|实际地址是|地址改为|地址为|地址是|谢谢|啦)', '', remark_str)
-        # 【V9.15 新增】：将新东方加入抓取防断保护白名单
         pattern = r'([^\s,，。!！\-\+]{2,30}(?:舍|栋|楼|公寓|宿舍|研究生\d+舍|院|馆|中心|园|小区|村|门|座|研究院|学院|公司|外卖架|婚礼|园区|绸缎庄|新东方)[^\s,，。!！\-\+]*)'
         match = re.search(pattern, clean_rem)
         if match: return match.group(1)
@@ -250,7 +259,7 @@ def clean_remark_overrides(rem):
     return rem_str
 
 # 7. 文件处理主程序
-uploaded_file = st.file_uploader("📂 请上传原始订单表 (验证 V9.15 商业地标扩容版)", type=['csv', 'xlsx', 'xls'])
+uploaded_file = st.file_uploader("📂 请上传原始订单表 (验证无敌云端版)", type=['csv', 'xlsx', 'xls'])
 
 if uploaded_file is not None:
     try:
@@ -261,7 +270,7 @@ if uploaded_file is not None:
                    '订单备注': next((c for c in df.columns if '备注' in c), '订单备注'),
                    '订单标签': next((c for c in df.columns if '标签' in c), '订单标签')}
 
-        with st.spinner("🚀 正在扩容 bj 配送版图..."):
+        with st.spinner("🚀 正在极速处理订单，云端防卡死引擎已启动..."):
             
             df = df.dropna(subset=[mapping['用户昵称'], mapping['配送地址']], how='all')
             df[mapping['配送地址']] = df.apply(lambda x: apply_remark_overrides(x[mapping['配送地址']], x[mapping['订单备注']]), axis=1)
@@ -284,7 +293,7 @@ if uploaded_file is not None:
             df_final = df_sorted[final_cols]
             df_final.columns = ['用户昵称', '数量', '订单标签', '配送地址', '配送员', '订单备注']
 
-            st.success("✅ V9.15 处理完成！新东方3楼已成功划分至 bj 配送区域。")
+            st.success("✅ V9.16 处理完成！饱气云端中枢已彻底免疫表格结构 BUG！")
             st.dataframe(df_final.head(10), use_container_width=True)
             
             output = io.BytesIO()
@@ -317,8 +326,8 @@ if uploaded_file is not None:
                     
                 ws.row_dimensions[1].height = 25
             
-            st.download_button(label="⬇️ 下载 V9.15 商业地标扩容版", data=output.getvalue(),
-                               file_name=f"饱气精排版_V9.15_{uploaded_file.name.replace('.xlsx', '').replace('.csv', '')}.xlsx",
+            st.download_button(label="⬇️ 下载饱气精排打印版", data=output.getvalue(),
+                               file_name=f"饱气精排版_V9.16.xlsx",
                                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     except Exception as e:
         st.error(f"处理失败: {e}")
