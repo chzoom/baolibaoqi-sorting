@@ -6,7 +6,8 @@ import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 
-# === 【V9.17 基因继承版】===
+# === 【V9.18 基因克隆版】===
+# 疫苗：强行修复 openpyxl 读取带下拉菜单的 Excel 时的底层报错
 try:
     import openpyxl.worksheet.datavalidation
     _orig_init = openpyxl.worksheet.datavalidation.DataValidation.__init__
@@ -19,23 +20,20 @@ except Exception:
 # ===============================
 
 # 1. 网页全局配置
-st.set_page_config(page_title="饱里宝气 | 极简分单系统 v9.17", page_icon="🍱", layout="wide")
+st.set_page_config(page_title="饱里宝气 | 极简分单系统 v9.18", page_icon="🍱", layout="wide")
 
-st.title("🍱 饱气极简分单中枢 V9.17 云端版")
-st.markdown("V9.17 更新：**地址基因继承引擎** | 备注中仅填写楼栋号时，将自动继承原地址的片区前缀。")
+st.title("🍱 饱气极简分单中枢 V9.18 云端版")
+st.markdown("V9.18 更新：**精准替换引擎** | 备注纯楼栋将精准替换原地址的旧楼栋，完美保留校区前缀。")
 
-# 2. 核心分单逻辑 (绝对优先级排序引擎)
+# 2. 核心分单逻辑
 def categorize_final(addr):
     if pd.isna(addr): return '需人工核对'
     addr = str(addr).replace('\n', '')
     
     if any(k in addr for k in ['中医药', '比亚迪', '奥克斯', '交投', '含浦', '湖大子弟小学', '湖南大学子弟小学', '798', '科学村', '国际艺术园区', '四张机']): return '达达配送片区'
     if any(k in addr for k in ['金域缇香', '靳江', '黄鹤', '惟盛园', '中南壹号', '中南一号', '湘桥', '龙湖冠寓', '麓山公寓', '阳光100']): return '毛哥'
-    
     if any(k in addr for k in ['德智', '后湖小区', '后湖门', '11栋围栏', '生命交叉', '生命医学交叉', '天马小区', '天马南门', '天马学生公寓(南门)', '天马学生公寓（南门）']): return 'ds'
-    
     if any(k in addr for k in ['天马公寓', '天马学生公寓', '天马大酒店', '生物学院', '笔芯', '未来乡村', '国家电能', '天马基地', '新东方']): return 'bj'
-    
     if any(k in addr for k in ['桃花坪', '桃花公寓', '南院', '美术楼', '和乐楼', '体育馆', '矿冶院']): return 'fx'
     
     if any(k in addr for k in ['湖南师范大学', '师大', '二里半', '研究生2舍', '研究生3舍', '研究生5舍', '江边', '世承', '木兰楼', '科教院', '九栋', '十栋', '附中', '木兰', '学堂坡', '景德', '法学院', '麓枫和苑']):
@@ -80,10 +78,8 @@ def apply_prefix(orig_addr, addr, person):
     
     if person == '达达配送片区':
         if '国际艺术园区' in orig_str or '四张机' in orig_str:
-            clean_addr = clean_addr.replace('湖南师范大学', '').replace('师大', '')
-            clean_addr = clean_addr.strip() 
+            clean_addr = clean_addr.replace('湖南师范大学', '').replace('师大', '').strip() 
         return clean_addr
-
     if person == '毛哥':
         if any(k in orig_str or k in clean_addr for k in ['中南壹号', '中南一号']):
             if not any(k in clean_addr for k in ['中南壹号', '中南一号']): clean_addr = "中南壹号院" + clean_addr
@@ -92,12 +88,9 @@ def apply_prefix(orig_addr, addr, person):
         elif '金域缇香' in orig_str or '金域缇香' in clean_addr:
             if '金域缇香' not in clean_addr: clean_addr = "万科·金域缇香" + clean_addr
         return clean_addr
-
     if person == 'bj':
-        if '国家电能' in orig_str or '天马基地' in orig_str or '国家电能' in clean_addr or '天马基地' in clean_addr: 
-            return "国家电能变换与控制工程技术研究中心(天马基地)"
+        if '国家电能' in orig_str or '天马基地' in orig_str or '国家电能' in clean_addr or '天马基地' in clean_addr: return "国家电能变换与控制工程技术研究中心(天马基地)"
         return clean_addr
-
     if person == 'fx':
         clean_addr = clean_addr.replace('湖南师范大学', '').replace('湖南师大', '').replace('湖师大', '').replace('师大', '')
         if '体育馆' in orig_str or '体育馆' in clean_addr: return "1中南大学体育馆地铁口铁门处"
@@ -106,10 +99,14 @@ def apply_prefix(orig_addr, addr, person):
 
     if person in ['zw', '骑手']:
         clean_addr = clean_addr.replace('湖南师范大学', '').replace('湖南师大', '').replace('湖师大', '').replace('师大', '').replace('二里半校区', '').replace('二里半', '')
-        clean_addr = re.sub(r'^\d+', '', clean_addr).strip()
         
-        if "九栋" in orig_str or "九栋" in clean_addr: return "12师大二里半校区九栋"
-        if "十栋" in orig_str or "十栋" in clean_addr: return "10师大二里半校区十栋"
+        # 【V9.18 修复】保护 10栋 这种纯楼栋数字不被误杀，只清理 6逸夫 这种夹心数字
+        clean_addr = re.sub(r'^\d+(?!(栋|舍|楼|单元|区|号|座))', '', clean_addr).strip()
+        
+        # 【V9.18 修复】兼容阿拉伯数字和中文的转换
+        if any(k in orig_str or k in clean_addr for k in ["九栋", "9栋"]): return "12师大二里半校区九栋"
+        if any(k in orig_str or k in clean_addr for k in ["十栋", "10栋"]): return "10师大二里半校区十栋"
+        
         z_map = {"木兰楼": 4, "师大附中停车场": 15, "附中停车场": 15, "科教院": 18, "世承": 1, "木兰": 4, "研究生2舍": 13, "研究生3舍": 14, "江边3舍": 14, "麓枫和苑": 0}
         for k, v in z_map.items():
             if k in orig_str or k in clean_addr:
@@ -136,12 +133,10 @@ def apply_prefix(orig_addr, addr, person):
         if any(k in orig_str or k in clean_addr for k in ['后湖门', '德智园学生公寓', '德智后湖']): return "2湖南大学德智园学生公寓(后湖门)"
         if any(k in orig_str or k in clean_addr for k in ['天马南门', '学生公寓(南门)', '学生公寓（南门）']): return "3湖南大学天马学生公寓(南门)"
         if any(k in orig_str or k in clean_addr for k in ['生命交叉', '生命医学交叉']): return "4湖南大学生命医学交叉研究院"
-        
         if '天马小区' in orig_str or '天马' in clean_addr:
             if '天马小区' not in clean_addr: clean_addr = "天马小区" + clean_addr.replace('天马', '')
             clean_addr = clean_addr[clean_addr.find("天马小区"):]
             return f"5{clean_addr}"
-            
         if '后湖小区' in orig_str or '后湖' in clean_addr:
             if '后湖小区' not in clean_addr: clean_addr = "后湖小区" + clean_addr.replace('后湖', '')
             clean_addr = clean_addr[clean_addr.find("后湖小区"):]
@@ -162,14 +157,12 @@ def apply_prefix(orig_addr, addr, person):
         clean_addr = clean_addr.replace('麓南校区', '').replace('升华学生公寓', '')
         clean_addr = re.sub(r'(麓南校区)?南6舍?', '南六舍', clean_addr)
         clean_addr = clean_addr.replace('南6舍', '南六舍').replace('南6', '南六舍').replace('南六', '南六舍').replace('舍舍', '舍')
-        
         if '青年教师公寓2栋' in orig_str or '青年教师公寓2栋' in clean_addr:
             suffix = clean_addr.split('青年教师公寓2栋')[-1] if '青年教师公寓2栋' in clean_addr else ''
             return f"27南校区青年教师公寓2栋{suffix}"
         if '青年教师公寓3栋' in orig_str or '青年教师公寓3栋' in clean_addr:
             suffix = clean_addr.split('青年教师公寓3栋')[-1] if '青年教师公寓3栋' in clean_addr else ''
             return f"28南校区青年教师公寓3栋{suffix}"
-
         s_map = {"14栋":1, "19栋":2, "18栋":3, "13栋":4, "7栋":5, "6栋":6, "5栋":7, "1栋":8, "2栋":9, "10栋":10, "11栋":11, "17栋":12, "南八":13, "南五":14, "南六舍":15, "20栋":16, "21栋":17, "24栋":18, "25栋":19, "26栋":20, "29栋":21, "15栋":22, "16栋":23, "27栋":24, "28栋":25, "31栋":26, "青年教师公寓2栋":27, "青年教师公寓3栋":28, "32栋":29, "33栋":30, "34栋":31, "38":32, "35栋":33, "教职工17栋":34, "逸间":35}
         for k, v in s_map.items():
             if k in orig_str or k in clean_addr:
@@ -187,7 +180,6 @@ def apply_prefix(orig_addr, addr, person):
                 if k not in clean_addr: clean_addr = k + clean_addr
                 return f"{v}中南大学新校区{clean_addr}" if v != 0 else f"中南大学新校区{clean_addr}"
         return f"中南大学新校区{clean_addr}"
-
     return clean_addr
 
 # 5. 动线排序权重引擎
@@ -221,28 +213,33 @@ def smart_refine_address(original_addr, remark):
     orig_str = str(original_addr).replace('\n', '') if pd.notna(original_addr) else ''
     
     if any(k in remark_str for k in ['舍', '栋', '楼', '公寓', '宿舍', '院', '馆', '中心', '园', '小区', '村', '座']):
-        # 清理口语化的前缀词
         clean_rem = re.sub(r'(麻烦送到|麻烦送|麻烦|请送|请送到|放附近|改送到|送到|改送|送去|实际地址为|实际地址是|地址改为|地址为|地址是|谢谢|啦)', '', remark_str)
-        
-        # 提取备注中的地址特征 (比如 "10栋", "34栋", "天马34栋")
         pattern = r'([A-Za-z0-9\u4e00-\u9fa5]+(?:舍|栋|楼|公寓|宿舍|研究生\d+舍|院|馆|中心|园|小区|村|门|座|研究院|学院|公司|外卖架|婚礼|园区|绸缎庄|新东方)[A-Za-z0-9\u4e00-\u9fa5]*)'
         match = re.search(pattern, clean_rem)
         
         if match:
             extracted_target = match.group(1)
             
-            # === 【V9.17 地址基因继承逻辑】 ===
-            # 定义主要校区/大区域的关键字（按优先级排列）
-            major_areas = ['天马', '升华', '后湖', '新校区', '本部', '南校', '师大', '湖南师范', '湖大', '湖南大学', '德智', '中南', '麓枫', '美术', '和乐', '体育馆', '桃花', '国际艺术园区']
+            # === 【V9.18 精准替换引擎】 ===
+            # 如果备注提取出类似 "10栋", "34栋", "3楼", "A座" 这种“纯数字/字母+单位”
+            suffix_match = re.match(r'^([A-Za-z0-9]+)(舍|栋|楼|公寓|区|单元|号|座)$', extracted_target)
             
-            # 判断备注里抓出来的地址，是否含有大片区标识
+            if suffix_match:
+                suffix = suffix_match.group(2) # 提取单位，比如 "栋"
+                # 构建搜索条件：在原地址找 [任意数字/字母]+这个单位（比如找 "9栋" 或 "69栋"）
+                orig_replace_pattern = r'[A-Za-z0-9]+' + suffix
+                if re.search(orig_replace_pattern, orig_str):
+                    # 找到后，直接精准替换。例如把 "天马小区69栋" 替换为 "天马小区34栋"
+                    return re.sub(orig_replace_pattern, extracted_target, orig_str)
+            
+            # 兜底：如果没有触发替换（比如备注写了完整的“天马34栋”），走大片区继承
+            major_areas = ['二里半', '天马', '升华', '后湖', '新校区', '本部', '南校', '师大', '湖南师范', '湖大', '湖南大学', '德智', '中南', '麓枫', '美术', '和乐', '体育馆', '桃花', '国际艺术园区']
             has_major_area = any(area in extracted_target for area in major_areas)
             
-            # 如果备注里只有光秃秃的 "34栋"，就去原地址里“借”一个前缀过来
             if not has_major_area:
                 for area in major_areas:
                     if area in orig_str:
-                        return area + extracted_target # 例如拼成 "天马" + "34栋"
+                        return area + extracted_target
             
             return extracted_target
             
@@ -269,19 +266,13 @@ def apply_remark_overrides(addr, rem):
 def clean_remark_overrides(rem):
     if pd.isna(rem): return rem
     rem_str = str(rem)
-    if '南六舍' in rem_str:
-        res = rem_str.replace('放附近南六舍谢谢啦', '').replace('送到南六舍', '').replace('南六舍', '').strip()
-        return res if res else '无'
-    if '科技楼' in rem_str:
-        res = rem_str.replace('科技楼', '').strip()
-        return res if res else '无'
-    if '三一大楼' in rem_str:
-        res = rem_str.replace('实际地址为三一大楼', '').replace('三一大楼', '').strip()
-        return res if res else '无'
+    if '南六舍' in rem_str: return rem_str.replace('放附近南六舍谢谢啦', '').replace('送到南六舍', '').replace('南六舍', '').strip() or '无'
+    if '科技楼' in rem_str: return rem_str.replace('科技楼', '').strip() or '无'
+    if '三一大楼' in rem_str: return rem_str.replace('实际地址为三一大楼', '').replace('三一大楼', '').strip() or '无'
     return rem_str
 
 # 7. 文件处理主程序
-uploaded_file = st.file_uploader("📂 请上传原始订单表 (验证 V9.17 基因继承版)", type=['csv', 'xlsx', 'xls'])
+uploaded_file = st.file_uploader("📂 请上传原始订单表 (验证 V9.18 基因克隆版)", type=['csv', 'xlsx', 'xls'])
 
 if uploaded_file is not None:
     try:
@@ -315,7 +306,7 @@ if uploaded_file is not None:
             df_final = df_sorted[final_cols]
             df_final.columns = ['用户昵称', '数量', '订单标签', '配送地址', '配送员', '订单备注']
 
-            st.success("✅ V9.17 处理完成！孤立楼栋号已成功继承原片区基因！")
+            st.success("✅ V9.18 处理完成！备注孤立数字已完美替换原地址楼栋！")
             st.dataframe(df_final.head(10), use_container_width=True)
             
             output = io.BytesIO()
@@ -348,8 +339,8 @@ if uploaded_file is not None:
                     
                 ws.row_dimensions[1].height = 25
             
-            st.download_button(label="⬇️ 下载饱气精排打印版 (V9.17)", data=output.getvalue(),
-                               file_name=f"饱气精排版_V9.17.xlsx",
+            st.download_button(label="⬇️ 下载饱气精排打印版 (V9.18)", data=output.getvalue(),
+                               file_name=f"饱气精排版_V9.18.xlsx",
                                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     except Exception as e:
         st.error(f"处理失败: {e}")
